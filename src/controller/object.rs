@@ -16,6 +16,7 @@ pub async fn create_object(_path: web::Path<ObjectPath>) -> impl Responder {
     HttpResponse::Created().finish()
 }
 
+
 #[get("/{bucket}/{object}")]
 pub async fn read_object(_path: web::Path<ObjectPath>) -> impl Responder {
     // TODO: Implement logic to read object
@@ -32,10 +33,4 @@ pub async fn update_object(_path: web::Path<ObjectPath>) -> impl Responder {
 pub async fn delete_object(_path: web::Path<ObjectPath>) -> impl Responder {
     // TODO: Implement logic to delete object
     HttpResponse::NoContent().finish()
-}
-
-
-#[get("/")]
-pub async fn version() -> impl Responder {
-    "Hello, world!"
 }
