@@ -16,7 +16,6 @@ pub async fn create_object(_path: web::Path<ObjectPath>) -> impl Responder {
     HttpResponse::Created().finish()
 }
 
-
 #[get("/{bucket}/{object}")]
 pub async fn read_object(_path: web::Path<ObjectPath>) -> impl Responder {
     // TODO: Implement logic to read object
