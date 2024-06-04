@@ -1,7 +1,7 @@
 mod controller;
 
 use actix_web::{App, HttpServer};
-use controller::{read_object, create_object, delete_object, update_object, version}; 
+use controller::object::{create_object, delete_object, read_object, update_object, version};
 
 
 #[actix_web::main]
