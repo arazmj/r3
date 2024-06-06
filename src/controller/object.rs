@@ -1,7 +1,9 @@
-use actix_web::{get, web, HttpResponse, Responder};
+use std::fs::File;
+use std::io::Write;
+
+use actix_web::{get, HttpResponse, post, Responder, web};
 use bytes::Bytes;
 use serde::Deserialize;
-
 
 #[derive(Deserialize)]
 struct ObjectPath {
@@ -9,11 +11,14 @@ struct ObjectPath {
     object: String,
 }
 
-#[get("/{bucket}/{object}")]
-pub async fn create_object(_path: web::Path<ObjectPath>) -> impl Responder {
-    // TODO: Implement logic to create object
-
-    HttpResponse::Created().finish()
+#[post("/{bucket}/{object}")]
+pub async fn create_object(path: web::Path<ObjectPath>, payload: web::Payload) 
+    -> Result<impl Responder, actix_web::Error>  {
+    let bytes = payload.to_bytes().await.unwrap();
+    let mut f = File::create_new(std::path::Path::new(&path.bucket).join(&path.object))?;
+    f.write_all(&bytes)?;
+    println!("{}", String::from_utf8(bytes.to_vec()).unwrap());
+    Ok(HttpResponse::Created().finish())
 }
 
 #[get("/{bucket}/{object}")]
