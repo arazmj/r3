@@ -1,7 +1,7 @@
 pub mod object;
+pub mod bucket;
 
 use actix_web::{Responder, get};
-
 
 
 #[get("/")]
