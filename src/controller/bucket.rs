@@ -1,20 +1,29 @@
+use actix_web::{web, HttpResponse, Responder, post, get, delete};
 use std::fs;
 
-use actix_web::{delete, error, HttpResponse, post, Responder, web};
-use actix_web::http::StatusCode;
-use guid_create::GUID;
-
-#[post("/bucket")]
-pub async fn create_bucket() -> Result<impl Responder, actix_web::Error> {
+#[post("/")]
+pub async fn create_bucket() -> impl Responder {
     println!("Creating bucket");
-    let guid = GUID::rand().to_string();
-    fs::create_dir(&guid).map_err(|e| error::InternalError::new(e, StatusCode::INTERNAL_SERVER_ERROR))?;
-    Ok(HttpResponse::Created().body(guid))
+    match fs::create_dir("path") {
+        Ok(_) => HttpResponse::Created().finish(),
+        Err(e) => HttpResponse::InternalServerError().body(e.to_string())
+    }
 }
 
-#[delete("/bucket/{bucket}")]
-pub async fn delete_bucket(path: web::Path<String>) ->  Result<impl Responder, actix_web::Error> {
-    println!("Deleting bucket {}", path.clone().to_uppercase());
-    fs::remove_dir(path.into_inner().to_uppercase()).map_err(|e| error::InternalError::new(e, StatusCode::INTERNAL_SERVER_ERROR))?;
-    Ok(HttpResponse::NoContent().finish())
+#[get("/{bucket}")]
+pub async fn read_bucket(_path: web::Path<String>) -> impl Responder {
+    // TODO: Implement logic to read object
+    HttpResponse::Ok().body("Object data")
+}
+
+#[get("/{bucket}")]
+pub async fn update_bucket(_path: web::Path<String>) -> impl Responder {
+    // TODO: Implement logic to update object
+    HttpResponse::NoContent().finish()
+}
+
+#[delete("/{bucket}")]
+pub async fn delete_bucket(_path: web::Path<String>) -> impl Responder {
+    // TODO: Implement logic to delete object
+    HttpResponse::NoContent().finish()
 }
