@@ -1,8 +1,8 @@
+use actix_web::{web, HttpResponse, Responder, Error, get, post};
+use serde::Deserialize;
 use std::fs::File;
 use std::io::{Read, Write};
-
-use actix_web::{Error, get, HttpResponse, post, Responder, web};
-use serde::Deserialize;
+use bytes::Bytes;
 
 #[derive(Deserialize)]
 struct ObjectPath {
@@ -18,12 +18,11 @@ impl ObjectPath {
     }    
 }
 
-
 #[post("/{bucket}/{object}")]
 pub async fn create_object(path: web::Path<ObjectPath>, payload: web::Payload) 
-    -> Result<impl Responder, actix_web::Error>  {
-    let bytes = payload.to_bytes().await.unwrap();
-    let mut f = &path.into_file()?;
+    -> Result<impl Responder, Error>  {
+    let bytes = payload.to_bytes().await?;
+    let mut f = path.into_file()?;
     f.write_all(&bytes)?;
     println!("{}", String::from_utf8(bytes.to_vec()).unwrap());
     Ok(HttpResponse::Created().finish())
@@ -31,11 +30,11 @@ pub async fn create_object(path: web::Path<ObjectPath>, payload: web::Payload)
 
 #[get("/{bucket}/{object}")]
 pub async fn read_object(path: web::Path<ObjectPath>)
-    -> Result<impl Responder, actix_web::Error>  {
-    let mut f = &path.into_file()?;
-    let mut content =  vec![];
+    -> Result<impl Responder, Error>  {
+    let mut f = path.into_file()?;
+    let mut content = Vec::new();
     f.read_to_end(&mut content)?;
-    Ok(HttpResponse::Ok().streaming(content))
+    Ok(HttpResponse::Ok().body(Bytes::from(content)))
 }
 
 #[get("/{bucket}/{object}")]
