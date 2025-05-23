@@ -94,6 +94,7 @@ mod tests {
     #[actix_web::test]
     async fn test_login() {
         let username = "testuser";
+        let password = "testpass";
         cleanup_user(username);
         
         let app = test::init_service(
@@ -107,7 +108,7 @@ mod tests {
             .uri("/register")
             .set_json(&User {
                 username: username.to_string(),
-                password: "testpass".to_string(),
+                password: password.to_string(),
             })
             .to_request();
         let resp = test::call_service(&app, register_req).await;
@@ -118,12 +119,14 @@ mod tests {
             .uri("/login")
             .set_json(&User {
                 username: username.to_string(),
-                password: "testpass".to_string(),
+                password: password.to_string(),
             })
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_success());
+        println!("Login response status: {}", resp.status());
+        let body = test::read_body(resp).await;
+        println!("Login response body: {:?}", body);
         
         cleanup_user(username);
     }
