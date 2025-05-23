@@ -8,6 +8,8 @@ use controller::version;
 
 mod controller;
 
+const SERVER_ADDRESS: &str = "127.0.0.1:8080";
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!(r#"
@@ -20,8 +22,8 @@ async fn main() -> std::io::Result<()> {
 S3-Compatible Storage Service
 Author: Your Name
 Version: 0.1.0
-Listening on: http://127.0.0.1:8080
-"#);
+Listening on: http://{}
+"#, SERVER_ADDRESS);
     HttpServer::new(|| {
         App::new()
             .service(version)
@@ -39,7 +41,7 @@ Listening on: http://127.0.0.1:8080
             .service(versioning::get_object_version)
             .service(versioning::delete_object_version)
     })
-    .bind("127.0.0.1:8080")?
+    .bind(SERVER_ADDRESS)?
     .run()
     .await
 }
