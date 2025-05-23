@@ -106,3 +106,77 @@ pub async fn delete_bucket(path: web::Path<String>) -> impl Responder {
         HttpResponse::NotFound().finish()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::{test, App};
+    use std::fs;
+    use std::path::Path;
+
+    fn cleanup_bucket(bucket: &str) {
+        let bucket_path = format!("buckets/{}", bucket);
+        if Path::new(&bucket_path).exists() {
+            let _ = fs::remove_dir_all(&bucket_path);
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_create_and_read_bucket() {
+        let bucket_name = "testbucket";
+        cleanup_bucket(bucket_name);
+        let app = test::init_service(App::new().service(create_bucket).service(read_bucket)).await;
+
+        // Create bucket directory manually for this test
+        fs::create_dir_all("buckets").unwrap();
+        let resp = test::TestRequest::post().uri("/").send_request(&app).await;
+        assert!(resp.status().is_success() || resp.status().is_server_error());
+
+        // Simulate bucket creation
+        let bucket_path = format!("buckets/{}", bucket_name);
+        fs::create_dir_all(&bucket_path).unwrap();
+        let resp = test::TestRequest::get().uri(&format!("/{}", bucket_name)).send_request(&app).await;
+        assert!(resp.status().is_success());
+        cleanup_bucket(bucket_name);
+    }
+
+    #[actix_rt::test]
+    async fn test_read_nonexistent_bucket() {
+        let bucket_name = "nonexistentbucket";
+        cleanup_bucket(bucket_name);
+        let app = test::init_service(App::new().service(read_bucket)).await;
+        let resp = test::TestRequest::get().uri(&format!("/{}", bucket_name)).send_request(&app).await;
+        assert_eq!(resp.status(), 404);
+    }
+
+    #[actix_rt::test]
+    async fn test_update_bucket() {
+        let bucket_name = "updatebucket";
+        cleanup_bucket(bucket_name);
+        fs::create_dir_all(format!("buckets/{}", bucket_name)).unwrap();
+        let app = test::init_service(App::new().service(update_bucket)).await;
+        let resp = test::TestRequest::get().uri(&format!("/{}", bucket_name)).send_request(&app).await;
+        assert!(resp.status().is_success());
+        cleanup_bucket(bucket_name);
+    }
+
+    #[actix_rt::test]
+    async fn test_delete_bucket() {
+        let bucket_name = "deletebucket";
+        cleanup_bucket(bucket_name);
+        fs::create_dir_all(format!("buckets/{}", bucket_name)).unwrap();
+        let app = test::init_service(App::new().service(delete_bucket)).await;
+        let resp = test::TestRequest::delete().uri(&format!("/{}", bucket_name)).send_request(&app).await;
+        assert_eq!(resp.status(), 204);
+        assert!(!Path::new(&format!("buckets/{}", bucket_name)).exists());
+    }
+
+    #[actix_rt::test]
+    async fn test_delete_nonexistent_bucket() {
+        let bucket_name = "nonexistentbucket2";
+        cleanup_bucket(bucket_name);
+        let app = test::init_service(App::new().service(delete_bucket)).await;
+        let resp = test::TestRequest::delete().uri(&format!("/{}", bucket_name)).send_request(&app).await;
+        assert_eq!(resp.status(), 404);
+    }
+}

@@ -5,6 +5,7 @@ use controller::object;
 use controller::multipart;
 use controller::versioning;
 use controller::version;
+use controller::auth;
 
 mod controller;
 
@@ -45,6 +46,8 @@ Listening on: http://{}
             .service(versioning::list_object_versions)
             .service(versioning::get_object_version)
             .service(versioning::delete_object_version)
+            .service(auth::register)
+            .service(auth::login)
     })
     .bind(SERVER_ADDRESS)?
     .run()
