@@ -30,7 +30,7 @@ impl UploadStore {
         }
     }
 
-    fn create_upload(&self, bucket: String, key: String) -> String {
+    fn _create_upload(&self, bucket: String, key: String) -> String {
         let upload_id = format!("{:x}", SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()

@@ -13,6 +13,7 @@ serde_json = "1.0"
 lazy_static = "1.4"
 md5 = "0.7"
 uuid = { version = "1.6", features = ["v4"] }
+bcrypt = "0.15"
 
 [dev-dependencies]
 actix-rt = "2.9"

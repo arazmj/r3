@@ -99,7 +99,7 @@ pub struct VersioningConfiguration {
 #[put("/{bucket}")]
 pub async fn put_bucket_versioning(
     path: web::Path<String>,
-    config: web::Json<VersioningConfiguration>,
+    _config: web::Json<VersioningConfiguration>,
 ) -> Result<HttpResponse, Error> {
     let bucket = path.into_inner();
     let mut store = VERSION_STORE.versions.lock().unwrap();

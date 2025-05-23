@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use lazy_static::lazy_static;
 use bcrypt::{hash, verify, DEFAULT_COST};
 
+
 lazy_static! {
     static ref USER_STORE: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
 }
