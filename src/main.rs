@@ -12,6 +12,9 @@ const SERVER_ADDRESS: &str = "127.0.0.1:8080";
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    if let Err(e) = bucket::load_policies() {
+        eprintln!("Failed to load bucket policies: {}", e);
+    }
     println!(r#"
   ____  ____  _____
  |  _ \|  _ \| ____|
@@ -32,6 +35,8 @@ Listening on: http://{}
             .service(object::delete_object)
             .service(bucket::create_bucket)
             .service(bucket::delete_bucket)
+            .service(bucket::set_bucket_policy)
+            .service(bucket::get_bucket_policy)
             .service(multipart::initiate_multipart_upload)
             .service(multipart::upload_part)
             .service(multipart::complete_multipart_upload)

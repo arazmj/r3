@@ -1,29 +1,108 @@
 use actix_web::{web, HttpResponse, Responder, post, get, delete};
-use std::fs;
+use serde::{Deserialize, Serialize};
+use std::fs::{self, File};
+use std::io::{Read, Write};
+use std::sync::Mutex;
+use std::collections::HashMap;
+use std::path::Path;
+
+#[derive(Serialize, Deserialize)]
+struct BucketPolicy {
+    policy: String,
+    acl: String,
+}
+
+lazy_static::lazy_static! {
+    static ref BUCKET_POLICIES: Mutex<HashMap<String, BucketPolicy>> = Mutex::new(HashMap::new());
+}
+
+const POLICY_FILE: &str = "bucket_policies.json";
+
+pub fn load_policies() -> std::io::Result<()> {
+    if Path::new(POLICY_FILE).exists() {
+        let mut file = File::open(POLICY_FILE)?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+        let policies: HashMap<String, BucketPolicy> = serde_json::from_str(&contents)?;
+        let mut store = BUCKET_POLICIES.lock().unwrap();
+        *store = policies;
+    }
+    Ok(())
+}
+
+fn save_policies() -> std::io::Result<()> {
+    let policies = BUCKET_POLICIES.lock().unwrap();
+    let contents = serde_json::to_string_pretty(&*policies)?;
+    let mut file = File::create(POLICY_FILE)?;
+    file.write_all(contents.as_bytes())?;
+    Ok(())
+}
+
+#[post("/{bucket}?policy")]
+pub async fn set_bucket_policy(
+    path: web::Path<String>,
+    policy: web::Json<BucketPolicy>,
+) -> impl Responder {
+    let bucket = path.into_inner();
+    let mut policies = BUCKET_POLICIES.lock().unwrap();
+    policies.insert(bucket, policy.into_inner());
+    if let Err(e) = save_policies() {
+        return HttpResponse::InternalServerError().body(format!("Failed to save policies: {}", e));
+    }
+    HttpResponse::Ok().finish()
+}
+
+#[get("/{bucket}?policy")]
+pub async fn get_bucket_policy(path: web::Path<String>) -> impl Responder {
+    let bucket = path.into_inner();
+    let policies = BUCKET_POLICIES.lock().unwrap();
+    match policies.get(&bucket) {
+        Some(policy) => HttpResponse::Ok().json(policy),
+        None => HttpResponse::NotFound().finish(),
+    }
+}
 
 #[post("/")]
 pub async fn create_bucket() -> impl Responder {
     println!("Creating bucket");
-    match fs::create_dir("path") {
+    match fs::create_dir("buckets") {
         Ok(_) => HttpResponse::Created().finish(),
         Err(e) => HttpResponse::InternalServerError().body(e.to_string())
     }
 }
 
 #[get("/{bucket}")]
-pub async fn read_bucket(_path: web::Path<String>) -> impl Responder {
-    // TODO: Implement logic to read object
-    HttpResponse::Ok().body("Object data")
+pub async fn read_bucket(path: web::Path<String>) -> impl Responder {
+    let bucket = path.into_inner();
+    let bucket_path = format!("buckets/{}", bucket);
+    if Path::new(&bucket_path).exists() {
+        HttpResponse::Ok().body("Bucket exists")
+    } else {
+        HttpResponse::NotFound().finish()
+    }
 }
 
 #[get("/{bucket}")]
-pub async fn update_bucket(_path: web::Path<String>) -> impl Responder {
-    // TODO: Implement logic to update object
-    HttpResponse::NoContent().finish()
+pub async fn update_bucket(path: web::Path<String>) -> impl Responder {
+    let bucket = path.into_inner();
+    let bucket_path = format!("buckets/{}", bucket);
+    if Path::new(&bucket_path).exists() {
+        HttpResponse::Ok().body("Bucket updated")
+    } else {
+        HttpResponse::NotFound().finish()
+    }
 }
 
 #[delete("/{bucket}")]
-pub async fn delete_bucket(_path: web::Path<String>) -> impl Responder {
-    // TODO: Implement logic to delete object
-    HttpResponse::NoContent().finish()
+pub async fn delete_bucket(path: web::Path<String>) -> impl Responder {
+    let bucket = path.into_inner();
+    let bucket_path = format!("buckets/{}", bucket);
+    if Path::new(&bucket_path).exists() {
+        match fs::remove_dir_all(&bucket_path) {
+            Ok(_) => HttpResponse::NoContent().finish(),
+            Err(e) => HttpResponse::InternalServerError().body(e.to_string())
+        }
+    } else {
+        HttpResponse::NotFound().finish()
+    }
 }

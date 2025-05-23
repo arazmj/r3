@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use bytes::Bytes;
 use crate::controller::versioning;
+use std::path::Path;
 
 #[derive(Deserialize)]
 struct ObjectPath {
@@ -14,8 +15,12 @@ struct ObjectPath {
 impl ObjectPath {
     fn into_file(&self) -> Result<File, Error> {
         use std::path::Path;
-        let f = File::create_new(Path::new(&self.bucket).join(&self.object))?;
-        Ok(f)
+        let path = Path::new(&self.bucket).join(&self.object);
+        if path.exists() {
+            File::open(path).map_err(|e| actix_web::error::ErrorInternalServerError(e))
+        } else {
+            File::create(path).map_err(|e| actix_web::error::ErrorInternalServerError(e))
+        }
     }    
 }
 
@@ -38,6 +43,10 @@ pub async fn create_object(path: web::Path<ObjectPath>, payload: web::Payload)
 #[get("/{bucket}/{object}")]
 pub async fn read_object(path: web::Path<ObjectPath>)
     -> Result<impl Responder, Error>  {
+    let file_path = Path::new(&path.bucket).join(&path.object);
+    if !file_path.exists() {
+        return Err(actix_web::error::ErrorNotFound("Object not found"));
+    }
     let mut f = path.into_file()?;
     let mut content = Vec::new();
     f.read_to_end(&mut content)?;
