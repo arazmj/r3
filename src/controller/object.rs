@@ -1,8 +1,9 @@
-use actix_web::{web, HttpResponse, Responder, Error, get, post};
+use actix_web::{web, HttpResponse, Responder, Error, get, post, delete};
 use serde::Deserialize;
 use std::fs::File;
 use std::io::{Read, Write};
 use bytes::Bytes;
+use crate::controller::versioning;
 
 #[derive(Deserialize)]
 struct ObjectPath {
@@ -24,8 +25,14 @@ pub async fn create_object(path: web::Path<ObjectPath>, payload: web::Payload)
     let bytes = payload.to_bytes().await?;
     let mut f = path.into_file()?;
     f.write_all(&bytes)?;
-    println!("{}", String::from_utf8(bytes.to_vec()).unwrap());
-    Ok(HttpResponse::Created().finish())
+    
+    // Create a new version
+    let etag = format!("{:x}", md5::compute(&bytes));
+    versioning::create_version(&path.bucket, &path.object, &bytes, &etag)?;
+    
+    Ok(HttpResponse::Created()
+        .insert_header(("ETag", etag))
+        .finish())
 }
 
 #[get("/{bucket}/{object}")]
@@ -34,6 +41,14 @@ pub async fn read_object(path: web::Path<ObjectPath>)
     let mut f = path.into_file()?;
     let mut content = Vec::new();
     f.read_to_end(&mut content)?;
+    
+    // Get the latest version
+    if let Some(version) = versioning::VERSION_STORE.get_latest_version(&path.bucket, &path.object) {
+        if version.is_delete_marker {
+            return Err(actix_web::error::ErrorNotFound("Object is deleted"));
+        }
+    }
+    
     Ok(HttpResponse::Ok().body(Bytes::from(content)))
 }
 
@@ -43,8 +58,10 @@ pub async fn update_object(_path: web::Path<ObjectPath>) -> impl Responder {
     HttpResponse::NoContent().finish()
 }
 
-#[get("/{bucket}/{object}")]
-pub async fn delete_object(_path: web::Path<ObjectPath>) -> impl Responder {
-    // TODO: Implement logic to delete object
-    HttpResponse::NoContent().finish()
+#[delete("/{bucket}/{object}")]
+pub async fn delete_object(path: web::Path<ObjectPath>) -> Result<impl Responder, Error> {
+    // Create a delete marker
+    versioning::create_delete_marker(&path.bucket, &path.object)?;
+    
+    Ok(HttpResponse::NoContent().finish())
 }
