@@ -17,3 +17,4 @@ bcrypt = "0.15"
 
 [dev-dependencies]
 actix-rt = "2.9"
+serial_test = "2.0"

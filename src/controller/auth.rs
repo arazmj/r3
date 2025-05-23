@@ -1,76 +1,71 @@
-use actix_web::{web, HttpResponse, Error, post};
+use actix_web::{web, HttpResponse, Responder};
+use actix_web::post;
 use serde::{Deserialize, Serialize};
+use bcrypt::{hash, verify, DEFAULT_COST};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use lazy_static::lazy_static;
-use bcrypt::{hash, verify, DEFAULT_COST};
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct User {
+    pub username: String,
+    pub password: String,
+}
 
 lazy_static! {
     static ref USER_STORE: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct User {
-    username: String,
-    password: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LoginResponse {
-    token: String,
-}
-
 #[post("/register")]
-pub async fn register(user: web::Json<User>) -> Result<HttpResponse, Error> {
+pub async fn register(user: web::Json<User>) -> impl Responder {
+    println!("Registering user: {}", user.username);
     let mut store = USER_STORE.lock().unwrap();
-    
     if store.contains_key(&user.username) {
-        return Ok(HttpResponse::Conflict().body("Username already exists"));
+        println!("User {} already exists", user.username);
+        return HttpResponse::Conflict().json("User already exists");
     }
-    
-    let hashed_password = hash(user.password.as_bytes(), DEFAULT_COST)
-        .map_err(|_| actix_web::error::ErrorInternalServerError("Failed to hash password"))?;
-    
-    store.insert(user.username.clone(), hashed_password);
-    
-    Ok(HttpResponse::Created().finish())
+
+    match hash(&user.password, DEFAULT_COST) {
+        Ok(hashed) => {
+            store.insert(user.username.clone(), hashed);
+            println!("Successfully registered user: {}", user.username);
+            HttpResponse::Created().json("User registered successfully")
+        }
+        Err(_) => HttpResponse::InternalServerError().json("Failed to hash password")
+    }
 }
 
 #[post("/login")]
-pub async fn login(user: web::Json<User>) -> Result<HttpResponse, Error> {
+pub async fn login(user: web::Json<User>) -> impl Responder {
     let store = USER_STORE.lock().unwrap();
-    
-    let hashed_password = match store.get(&user.username) {
-        Some(pwd) => pwd,
-        None => return Ok(HttpResponse::Unauthorized().body("Invalid username or password")),
-    };
-    
-    if !verify(&user.password, hashed_password)
-        .map_err(|_| actix_web::error::ErrorInternalServerError("Failed to verify password"))? {
-        return Ok(HttpResponse::Unauthorized().body("Invalid username or password"));
+    match store.get(&user.username) {
+        Some(hashed) => {
+            match verify(&user.password, hashed) {
+                Ok(true) => HttpResponse::Ok().json("Login successful"),
+                _ => HttpResponse::Unauthorized().json("Invalid credentials")
+            }
+        }
+        None => HttpResponse::Unauthorized().json("User not found")
     }
-    
-    let token = uuid::Uuid::new_v4().to_string();
-    let response = LoginResponse { token };
-    
-    Ok(HttpResponse::Ok().json(response))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use actix_web::test;
+    use serial_test::serial;
 
-    fn cleanup_user(username: &str) {
+    fn clear_store() {
+        println!("Clearing entire user store");
         let mut store = USER_STORE.lock().unwrap();
-        store.remove(username);
+        store.clear();
     }
 
     #[actix_web::test]
+    #[serial]
     async fn test_register() {
         let username = "testuser";
-        cleanup_user(username);
+        clear_store();
         
         let app = test::init_service(
             actix_web::App::new()
@@ -86,16 +81,20 @@ mod tests {
             .to_request();
 
         let resp = test::call_service(&app, req).await;
-        assert!(resp.status().is_success());
+        println!("Register response status: {}", resp.status());
+        assert_eq!(resp.status(), 201); // Expect Created status
+        let body = test::read_body(resp).await;
+        println!("Register response body: {:?}", body);
         
-        cleanup_user(username);
+        clear_store();
     }
 
     #[actix_web::test]
+    #[serial]
     async fn test_login() {
         let username = "testuser";
         let password = "testpass";
-        cleanup_user(username);
+        clear_store();
         
         let app = test::init_service(
             actix_web::App::new()
@@ -112,7 +111,7 @@ mod tests {
             })
             .to_request();
         let resp = test::call_service(&app, register_req).await;
-        assert!(resp.status().is_success());
+        assert_eq!(resp.status(), 201); // Expect Created status
 
         // Now test login
         let req = test::TestRequest::post()
@@ -125,9 +124,10 @@ mod tests {
 
         let resp = test::call_service(&app, req).await;
         println!("Login response status: {}", resp.status());
+        assert!(resp.status().is_success());
         let body = test::read_body(resp).await;
         println!("Login response body: {:?}", body);
         
-        cleanup_user(username);
+        clear_store();
     }
 } 
